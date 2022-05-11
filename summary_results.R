@@ -1,4 +1,4 @@
-#' Summarizes results.
+# Summarizes results.
 
 summary_results = function(object,
                           digits=4L,
@@ -24,8 +24,8 @@ summary_results = function(object,
     cpu=as.numeric(c(cpu,round(object$time$simulation$total,digits=digits)))
     cpu.navn=c(cpu.navn,"Chronology sampling")
   }
-  if(!is.null(object$linramp) && !is.null(object$DO_dating)){
-    cpu=as.numeric(c(cpu,round(object$time$t1_and_ramp + object$time$DO_age$total,digits=digits)))
+  if(!is.null(object$linramp) && !is.null(object$event_dating)){
+    cpu=as.numeric(c(cpu,round(object$time$t1_and_ramp + object$time$event_age$total,digits=digits)))
     cpu.navn=c(cpu.navn,"DO dating")
   }
   if(!is.null(object$biases)){
@@ -101,25 +101,18 @@ summary_results = function(object,
     ut = c(ut,linramplist)
   }
 
-  if(!is.null(object$DO_dating)){
-    DO_age = matrix(round(c(object$DO_dating$mean,object$DO_dating$sd,object$DO_dating$q0.025,object$DO_dating$q0.5,object$DO_dating$q0.975),digits=digits),nrow=1)
-    colnames(DO_age) = c("mean","sd","quant0.025","quant0.5","quant0.975")
-    rownames(DO_age) = "Onset age"
-    DO_age = as.data.frame(round(DO_age,digits=digits))
-    DOlist = list(DO_age=DO_age,datingsims = object$DO_dating$.args$nsims,label=object$DO_dating$.args$label,age.reference=object$DO_dating$.args$age.reference)
+  if(!is.null(object$event_dating)){
+    event_age = matrix(round(c(object$event_dating$mean,object$event_dating$sd,object$event_dating$q0.025,object$event_dating$q0.5,object$event_dating$q0.975),digits=digits),nrow=1)
+    colnames(event_age) = c("mean","sd","quant0.025","quant0.5","quant0.975")
+    rownames(event_age) = "Onset age"
+    event_age = as.data.frame(round(event_age,digits=digits))
+    DOlist = list(event_age=event_age,datingsims = object$event_dating$.args$nsims,label=object$event_dating$.args$label,age.reference=object$event_dating$.args$age.reference)
     ut = c(ut,DOlist)
   }
 
   if(!is.null(object$biases)){
     nbiases = object$biases$.args$nbiases
 
-    # if(nbiases == 1){
-    #   #biasparam = object$biases$.args$biasparam
-    #   biasparam = matrix(object$biases$.args$biasparam,nrow=1)
-    #   colnames(biasparam) = c("param1","param2")
-    #   rownames(biasparam) = ""
-    #   biasparam = as.data.frame(biasparam)
-    # }else{
       biasparam = t(matrix(object$biases$.args$biasparam,ncol=nbiases))
       colnames(biasparam) = c("param1","param2")
       rownames(biasparam) = 1:nbiases
@@ -188,12 +181,12 @@ print.summary_results = function(x,
     if(x$rampsims>0) cat("\n",x$rampsims, " samples of linear ramp function produced.\n",sep="")
 
     if(!is.null(x$age.reference)){
-      if(!is.null(x$DO_age)) cat("\nGenerated ",x$datingsims, " samples of onset ages (reference onset age is ",x$age.reference,").\n",sep="")
+      if(!is.null(x$event_age)) cat("\nGenerated ",x$datingsims, " samples of onset ages (reference onset age is ",x$age.reference,").\n",sep="")
     }else{
-      if(!is.null(x$DO_age)) cat("\nGenerated ",x$datingsims, " samples of onset ages.\n",sep="")
+      if(!is.null(x$event_age)) cat("\nGenerated ",x$datingsims, " samples of onset ages.\n",sep="")
     }
 
-    if(!is.null(x$DO_age)) print(x$DO_age)
+    if(!is.null(x$event_age)) print(x$event_age)
     #if(!is.null(x$age.reference)) cat("The reference onset age is ",x$age.reference,"\n",sep="")
   }
 

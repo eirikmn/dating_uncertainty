@@ -8,8 +8,8 @@ plot_results = function(x,
                        plot.inlasims = list(nsims=30,legend=NULL,xrev=FALSE,label=NULL),
                        plot.bias = list(MCE=NULL,legend=NULL,xrev=FALSE,label=NULL),
                        plot.linramp = list(depth.reference=NULL,show.t0=TRUE,show.t1=TRUE,xrev=TRUE,label=NULL),
-                       plot.DO_depth = list(depth.reference=NULL,xrev=TRUE,label=NULL),
-                       plot.DO_age = list(age.reference=NULL,xrev=TRUE,label=NULL),
+                       plot.event_depth = list(depth.reference=NULL,xrev=TRUE,label=NULL),
+                       plot.event_age = list(age.reference=NULL,xrev=TRUE,label=NULL),
                        postscript=FALSE,
                        pdf=FALSE,
                        prefix = "results.plots/figure-",
@@ -47,7 +47,12 @@ plot_results = function(x,
     }
     xlim = c(xdata[1],xdata[n])
     if(plot.proxydata$xrev) xlim=rev(xlim)
-    plot(xdata,xx,type="l",xlab=xlab,ylab=expression(paste(delta^18,"O (permil)")),main=plot.proxydata$label,xlim=xlim)
+    if(tolower(x$.args$proxy.type) %in% c("d18o","d18","o","oxygen","d","del")){
+      plot(xdata,xx,type="l",xlab=xlab,ylab=expression(paste(delta^18,"O (permil)")),main=plot.proxydata$label,xlim=xlim)
+    }else if(tolower(x$.args$proxy.type) %in% c("calcium","ca","ca2","ca2+","dust","logcalcium")){
+      plot(xdata,xx,type="l",xlab=xlab,ylab=expression(paste("log(",Ca^"2+",") (mL"^"-1",")")),main=plot.proxydata$label,xlim=xlim)
+    }
+    
     if(nevents>0) abline(v=xdata[eventindexes],lwd=0.6,col="gray")#rgb(red=0.5,green=0.5,blue=0.5,alpha=1),lwd=0.8)
 
     if(postscript || pdf){
@@ -56,22 +61,29 @@ plot_results = function(x,
       }
     }
   }
-  dy=x$data$dy
+  
+  if(tolower(x$.args$transform) %in% "log"){
+    dy = x$data$logdy
+    ylab = "Log-layer increments per 5 cm"
+  }else{
+    dy=x$data$dy
+    ylab = "Layer increments per 5cm"
+  }
 
   if(!is.null(plot.ls) && !is.null(x$LS.fitting$fit)){
     figure.count <- new.plot(postscript,pdf,prefix,figure.count,...) +1
     par(mfrow=c(1,1),mar=c(5,4,4,2)+0.1)
     if(plot.ls$fitted){
-      xlim = range(z)
+      xlim = range(x$data$z)
       if(plot.ls$xrev) xlim=rev(xlim)
       if(is.null(plot.ls$label.fit)){
         plot.label="Least squares fit"
       }else{
         plot.label=plot.ls$label.fit
       }
-      plot(z,dy,type="l",xlab=paste0("Depth (m)"),xlim=xlim,ylab=("Layers per 5 cm"),main=plot.label)
-      lines(z,x$LS.fitting$fit$fitted.values,col="red")
-      abline(v=z[eventindexes],col="gray",lwd=0.8)
+      plot(x$data$z,dy,type="l",xlab=paste0("Depth (m)"),xlim=xlim,ylab=ylab,main=plot.label)
+      lines(x$data$z,x$LS.fitting$fit$fitted.values,col="red")
+      abline(v=x$data$z[eventindexes],col="gray",lwd=0.8)
     }
     if(!is.null(plot.ls$legend)) legend(x=leg$x,y=leg$y,legend=leg$legend,col=leg$col,lty=leg$lty,cex=leg$cex,pch=leg$pch,lwd=leg$lwd,pt.cex=leg$pt.cex,bty=leg$bty)
 
@@ -235,7 +247,11 @@ plot_results = function(x,
     }else{
       plot.label=x$linramp$.args$label
     }
+    if(tolower(x$.args$proxy.type) %in% c("d18o","d18","o","oxygen","d","del")){
     plot(xval,x$linramp$data$y,type="l",lwd=1.25,col="gray",xlim=xlim,ylim=yrange,xlab="Depth (m)",ylab=expression(paste(delta^18, "O (permil)")),main=plot.label)
+    }else if(tolower(x$.args$proxy.type) %in% c("calcium","ca","ca2","ca2+","dust","logcalcium")){
+      plot(xval,x$linramp$data$y,type="l",lwd=1.25,col="gray",xlim=xlim,ylim=yrange,xlab="Depth (m)",ylab=expression(paste("log(",Ca^"2+",") (mL"^"-1",")")),main=plot.label)
+    }
     lines(xval,x$linramp$linrampfit$q0.025,col="red",lwd=2)
     lines(xval,x$linramp$linrampfit$q0.975,col="red",lwd=2)
     lines(xval,x$linramp$linrampfit$mean,col="black",lwd=2)
@@ -255,8 +271,8 @@ plot_results = function(x,
       lines(x=margt1[,1],y=normt1.y,col="blue",lwd=2,lty=3)
     }
 
-    if(!is.null(plot.DO_depth$depth.reference)){
-      abline(v=plot.DO_age$age.reference,lwd=2,lty=3)
+    if(!is.null(plot.event_depth$depth.reference)){
+      abline(v=plot.event_age$age.reference,lwd=2,lty=3)
     }else{
       if(!is.null(x$linramp$.args$depth.reference)){
         abline(v= x$linramp$.args$depth.reference,lwd=2,lty=3)
@@ -264,29 +280,29 @@ plot_results = function(x,
     }
   }
 
-  if(!is.null(plot.DO_depth) && !is.null(plot.linramp)){
+  if(!is.null(plot.event_depth) && !is.null(plot.linramp)){
     figure.count <- new.plot(postscript,pdf,prefix,figure.count,...) +1
     par(mfrow=c(1,1),mar=(c(5,4,4,2)+0.1))
-    if(is.null(plot.DO_depth$label)){
+    if(is.null(plot.event_depth$label)){
       plot.label = x$linramp$.args$label
     }else{
-      plot.label = plot.DO_depth$label
+      plot.label = plot.event_depth$label
     }
     xlim = range(x$linramp$param$t0$marg.t0[,1])
-    if(!is.null(plot.DO_depth$depth.reference)){
-      xlim=range(xlim,plot.DO_depth$depth.reference)
+    if(!is.null(plot.event_depth$depth.reference)){
+      xlim=range(xlim,plot.event_depth$depth.reference)
     }else{
       if(!is.null(x$linramp$.args$depth.reference)){
         xlim=range(xlim,x$linramp$.args$depth.reference)
       }
     }
-    if(plot.DO_age$xrev) xlim=rev(xlim)
+    if(plot.event_age$xrev) xlim=rev(xlim)
     plot(x$linramp$param$t0$marg.t0,type="l",lwd=2,xlab="Onset depth (m)",ylab="Density",main=plot.label,xlim=xlim)
     abline(v=x$linramp$param$t0$mean,lwd=2)
     abline(v=c(x$linramp$param$t0$q0.025,x$linramp$param$t0$q0.975),lwd=2,col="gray")
 
-    if(!is.null(plot.DO_depth$depth.reference)){
-      abline(v=plot.DO_age$age.reference,lwd=2,lty=3)
+    if(!is.null(plot.event_depth$depth.reference)){
+      abline(v=plot.event_age$depth.reference,lwd=2,lty=3)
     }else{
       if(!is.null(x$linramp$.args$depth.reference)){
         abline(v= x$linramp$.args$depth.reference,lwd=2,lty=3)
@@ -294,17 +310,17 @@ plot_results = function(x,
     }
   }
 
-  if(!is.null(plot.DO_age) && !is.null(x$DO_dating)){
-    xlim = range(x$DO_dating$samples)
-    if(plot.DO_age$xrev) xlim=rev(xlim)
-    hist(x$DO_dating$samples,xlab="Onset age (y b2k)",freq=FALSE,col="orange",breaks=30,main=x$DO_dating$.args$label,xlim=xlim)
-    abline(v=x$DO_dating$mean,lwd=2)
-    abline(v=c(x$DO_dating$q0.025,x$DO_dating$q0.975),col="gray",lwd=2)
-    if(!is.null(plot.DO_age$age.reference)){
-      abline(v=plot.DO_age$age.reference,lwd=2,lty=3)
+  if(!is.null(plot.event_age) && !is.null(x$event_dating)){
+    xlim = range(x$event_dating$samples)
+    if(plot.event_age$xrev) xlim=rev(xlim)
+    hist(x$event_dating$samples,xlab="Onset age (y b2k)",freq=FALSE,col="orange",breaks=30,main=x$event_dating$.args$label,xlim=xlim)
+    abline(v=x$event_dating$mean,lwd=2)
+    abline(v=c(x$event_dating$q0.025,x$event_dating$q0.975),col="gray",lwd=2)
+    if(!is.null(plot.event_age$age.reference)){
+      abline(v=plot.event_age$age.reference,lwd=2,lty=3)
     }else{
-      if(!is.null(x$DO_dating$.args$age.reference)){
-        abline(v=x$DO_dating$.args$age.reference,lwd=2,lty=3)
+      if(!is.null(x$event_dating$.args$age.reference)){
+        abline(v=x$event_dating$.args$age.reference,lwd=2,lty=3)
       }
     }
   }

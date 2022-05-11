@@ -25,12 +25,12 @@ meanmaker = function(coefs,reg.model,nevents=69,data){
   if(nevents>0){
     for(i in 2:nevents){
       if(reg.model$psi0){
-        #aa = coefs[coefcounter]
+        
         fitted = fitted + coefs[coefcounter]*data[[paste0("a",i-1)]]
         coefcounter=coefcounter+1
       }
       if(reg.model$psi1){
-        #cc = coefs[coefcounter]
+        
         fitted = fitted + coefs[coefcounter]*data[[paste0("c",i-1)]]
         coefcounter=coefcounter+1
       }
@@ -39,7 +39,7 @@ meanmaker = function(coefs,reg.model,nevents=69,data){
   return(fitted)
 }
 
-#' Computes the (noiseless) linear ramp function.
+# Computes the (noiseless) linear ramp function.
 linramp = function(t,t0=0,dt=1,y0=0,dy=1){
   y = numeric(length(t))
   y = y0 + dy*(t-t0)/dt
@@ -49,7 +49,7 @@ linramp = function(t,t0=0,dt=1,y0=0,dy=1){
 }
 
 
-
+# Computes the (noiseless) linear ramp function, but in reverse.
 linramprev = function(t,t0=0,dt=1,y0=0,dy=1){
   y = numeric(length(t))
   y = y0 + dy*(t-t0)/dt
@@ -104,7 +104,7 @@ simulationsummarizer = function(object,CI.type="hpd",print.progress=FALSE){
 
   time.summary = Sys.time()
   object$simulation$summary = list(mean=meanvek,sd=sdvek,lower=lower,upper=upper,
-                                   .args=list(interval=interval,print.progress=print.progress,CI.type=CI.type))
+                                   .args=list(interval=cbind(lower,upper),print.progress=print.progress,CI.type=CI.type))
   if(CI.type=="hpd") object$simulation$summary$mode = modevek
   if(print.progress) cat(" completed in ",difftime(time.summary,time.start,units="secs")[[1]],"\n",sep="")
 
@@ -116,7 +116,7 @@ simulationsummarizer = function(object,CI.type="hpd",print.progress=FALSE){
 
 
 
-
+## sets initial values for fixed parameters equal to least squares 'fit'
 control.fixed.priors = function(reg.model, fit, nevents){
 
   my.control.fixed = list(mean=list(  ))

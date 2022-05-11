@@ -1,4 +1,4 @@
-
+## computes chronologies where an additional stochastic bias following a uniform distribution with parameters given by biasparams
 biased_chronologies = function(object,bias.model="uniform",biasparams = c(0.99,1.01),nsims=10000,store.samples=FALSE){
   if(nsims > dim(object$simulation$age)[2]) stop("Number of simulated biases exceeds number of simulated chronologies! Shutting down...")
   time.start = Sys.time()

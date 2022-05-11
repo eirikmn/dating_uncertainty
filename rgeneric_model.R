@@ -70,8 +70,7 @@ rgeneric_model = function( #specifies necessary functions for INLA to define the
       i = i,
       j = j,
       x = xx,
-      giveCsparse = FALSE,
-      symmetric = T
+      symmetric = TRUE
     )
 
 

@@ -2,48 +2,20 @@
 # Fits the linear regression model to observations.
 modelfitter = function(object, method="inla",noise=NULL,print.progress=FALSE,verbose=FALSE){
 
-
-  time.start = Sys.time()
-  if(!is.null(noise)){
-
-    reg.model=object$.args$reg.model; nevents = object$.args$nevents; n=length(object$data$y)
-    eventindexes=object$.args$eventindexes
-
-    formulastring = "dy ~ "
-    if(!reg.model$const) formulastring=paste0(formulastring,"-1") else formulastring=paste0(formulastring,"1")
-    if(reg.model$depth1) formulastring=paste0(formulastring," + z")
-    if(reg.model$depth2) formulastring=paste0(formulastring," + z2")
-    if(reg.model$proxy) formulastring=paste0(formulastring," + x")
-    for(i in 2:nevents){
-      formulastring = paste0(formulastring, " + a",i-1," + c",i-1)
-    }
-    object$.args$ls.formulastring = formulastring
-    if(tolower(method)=="inla"){
-      if(tolower(noise) %in% c("iid","independent","ar(0)")){
-        formulastring = paste0(formulastring, " + f(idy,model=\"iid\")")
-      }else if(tolower(noise) %in% c("ar1","ar(1)")){
-        formulastring = paste0(formulastring, " + f(idy,model=\"ar1\")")
-      }else if(tolower(noise) %in% c("ar2","ar(2)")){
-        formulastring = paste0(formulastring, " + f(idy,model=\"ar\",order=2)")
-      }
-    }
-    object$formula = as.formula(formulastring)
-    object$.args$noise = noise
-  }else{
-    noise = object$.args$noise
-  }
+# 
+   time.start = Sys.time()
 
   formula = object$formula
   if(print.progress) cat("Performing least squares fit...",sep="")
-  #if(tolower(method) != "inla"){
-  fit = lm(object$ls.formula,object$data)
-  #plot(data$z,data$dy,typ="l",col="gray"); lines(data$z,fit$fitted.values,col="red")
+  
+  fit = lm(object$ls.formula,object$data) #fits model using least squares
+  
   dmean = fit$fitted.value
-  mean = object$data$y[1]+cumsum(dmean)
   resi = fit$residuals
 
-  object$LS.fitting = list(fit=fit, params=list(meanvector=as.numeric(mean)))
-  #object$params = list(mean=mean)
+  ## extract parameter estimates
+  object$LS.fitting = list(fit=fit, params=list(meanvector=as.numeric(dmean)))
+  
   if(tolower(object$.args$noise) %in% c("iid","independent","ar(0)")){
     sigma = sd(resi)
     object$LS.fitting$params[["sigma"]] = sigma
@@ -75,47 +47,68 @@ modelfitter = function(object, method="inla",noise=NULL,print.progress=FALSE,ver
     ## will use results from least squares fit as starting point in INLA optimization. Requires proper parametrization
     if(print.progress) cat("Performing INLA fit...\n",sep="")
 
+    #set initial values for fixed parameters based on least squares 'fit'
+    my.control.fixed = control.fixed.priors(reg.model, fit, object$.args$nevents)
+
+    resi = object$LS.fitting$fit$residuals
+
     initialmodes = log(1/object$LS.fitting$params$sigma^2)
+    
     if(tolower(object$.args$noise) %in% c(1,"ar1","ar(1)")){
       phi.ls = object$LS.fitting$params$phi
       initialmodes = c(initialmodes, log( (1+phi)/(1-phi) ))
+      
     }else if(tolower(object$.args$noise) %in% c(2,"ar2","ar(2)")){
       phi1.ls = object$LS.fitting$params$phi1
       phi2.ls = object$LS.fitting$params$phi2
-      initialmodes = c(initialmodes, log( (1+phi1/(1-phi2))/(1-phi1/(1-phi2)) ), log( (1+phi2)/(1-phi2) ) )
+      
+      initialmodes=c(initialmodes, log( (1+phi1/(1-phi2))/(1-phi1/(1-phi2)) ), log( (1+phi2)/(1-phi2) ) )
     }
 
-    my.control.fixed = control.fixed.priors(reg.model, fit, object$.args$nevents)
+    num.threads=1 #rgeneric can sometimes be more stable if more than one core is used
+    
+    object$data$idy=1:nrow(object$data) #create covariate for random effect in INLA
+    
+    ## fit using INLA
+    inlafit = inla(object$formula, family="gaussian",data=object$data, 
+                   control.family=list(hyper=list(prec=list(initial=12, fixed=TRUE))) ,
+                   control.fixed=my.control.fixed,num.threads = num.threads,
+                   control.compute=list(config=TRUE),verbose=FALSE,
+                   control.inla=list(restart=TRUE,h=0.1), 
+                   control.mode=list(theta=initialmodes,restart=TRUE)  )
 
-    inlafit = inla(object$formula, family="gaussian",data=object$data, control.family=list(hyper=list(prec=list(initial=12, fixed=TRUE))),
-                   control.fixed=my.control.fixed,
-                   control.compute=list(config=TRUE),verbose=verbose,control.inla=list(restart=TRUE,h=0.1), control.mode=list(theta=initialmodes)  )
-
-    #control.fixed=list(mean.intercept=df$layers[1],prec.intercept=0.001)
+    
     object$fitting = list(fit=inlafit)
-    posterior_sigma = inla.tmarginal(function(x)1/sqrt(x),inlafit$marginals.hyperpar$`Precision for idy`); zmarg_sigma=inla.zmarginal(posterior_sigma,silent=TRUE)
-    object$fitting$hyperparameters = list(posteriors=list(sigma_epsilon=posterior_sigma))
-    object$fitting$hyperparameters$results = list(sigma_epsilon = zmarg_sigma)
-
-
-    if(tolower(object$.args$noise)%in% c(1,"ar1","ar(1)") ){
-      posterior_phi = inlafit$marginals.hyperpar$`Rho for idy`; zmarg_phi = inla.zmarginal(posterior_phi,silent=TRUE)
-      object$fitting$hyperparameters$posteriors$phi = posterior_phi
-      object$fitting$hyperparameters$results$phi = zmarg_phi
-
-    }else if(object$.args$noise %in% c(2,"ar2","ar(2)") ){
-      hypersamples = inla.hyperpar.sample(50000,inlafit)
-
-      p=2
-      phii = hypersamples[, 2L:(2L+(p-1L))]
-      phis = apply(phii, 1L, inla.ar.pacf2phi)
-      posterior_phi1 = cbind(density(phis[1,])$x,density(phis[1,])$y);colnames(posterior_phi1)=c("x","y"); zmarg_phi1 = inla.zmarginal(posterior_phi1,silent=TRUE)
-      posterior_phi2 = cbind(density(phis[2,])$x,density(phis[2,])$y);colnames(posterior_phi2)=c("x","y"); zmarg_phi2=inla.zmarginal(posterior_phi2,silent=TRUE)
-      object$fitting$hyperparameters$posteriors$phi1 = posterior_phi1
-      object$fitting$hyperparameters$results$phi1 = zmarg_phi1
-      object$fitting$hyperparameters$posteriors$phi2 = posterior_phi2
-      object$fitting$hyperparameters$results$phi2 = zmarg_phi2
+    
+    
+    if(print.progress){
+      cat("Computing remaining posteriors using Monte Carlo simulation...\n",sep="")
     }
+    
+    ## extract posteriors for hyperparameters
+  posterior_sigma = inla.tmarginal(function(x)1/sqrt(x),inlafit$marginals.hyperpar$`Precision for idy`); zmarg_sigma=inla.zmarginal(posterior_sigma,silent=TRUE)
+  object$fitting$hyperparameters = list(posteriors=list(sigma_epsilon=posterior_sigma))
+  object$fitting$hyperparameters$results$sigma_epsilon = zmarg_sigma
+  if(tolower(object$.args$noise)%in% c(1,"ar1","ar(1)") ){
+    posterior_phi = inlafit$marginals.hyperpar$`Rho for idy`; zmarg_phi = inla.zmarginal(posterior_phi,silent=TRUE)
+    object$fitting$hyperparameters$posteriors$phi = posterior_phi
+    object$fitting$hyperparameters$results$phi = zmarg_phi
+    
+  }else if(object$.args$noise %in% c(2,"ar2","ar(2)") ){
+    hypersamples = inla.hyperpar.sample(50000,inlafit)
+    
+    p=2
+    phii = hypersamples[, 2L:(2L+(p-1L))]
+    phis = apply(phii, 1L, inla.ar.pacf2phi)
+    posterior_phi1 = cbind(density(phis[1,])$x,density(phis[1,])$y);colnames(posterior_phi1)=c("x","y"); zmarg_phi1 = inla.zmarginal(posterior_phi1,silent=TRUE)
+    posterior_phi2 = cbind(density(phis[2,])$x,density(phis[2,])$y);colnames(posterior_phi2)=c("x","y"); zmarg_phi2=inla.zmarginal(posterior_phi2,silent=TRUE)
+    object$fitting$hyperparameters$posteriors$phi1 = posterior_phi1
+    object$fitting$hyperparameters$results$phi1 = zmarg_phi1
+    object$fitting$hyperparameters$posteriors$phi2 = posterior_phi2
+    object$fitting$hyperparameters$results$phi2 = zmarg_phi2
+  }
+
+    
     time.inla=Sys.time()
     elapsed.inla = difftime(time.inla,time.ls,units="secs")[[1]]
     if(print.progress) cat("INLA fit completed in ",elapsed.inla, " seconds!\n",sep="")
