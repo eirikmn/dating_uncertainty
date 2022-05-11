@@ -8,7 +8,7 @@ To use this code, install all files in the same directory. Use function `main` l
 
 The code should run a Bayesian regression analysis on the GICC05 time scale (*NGRIP_d18O_and_dust_5cm.xls*) from [iceandclimate.nbi.ku.dk](https://www.iceandclimate.nbi.ku.dk/data/), but should be able to analyse other layer-counted proxy records as well.
 
-**Warning:** This code produces (by default) 30,000 simulated chronologies with individual lengths exceeding 18,000. This will require a significant amount of memory. Tune the number of samples down or free up memory before use.
+**Warning:** This code produces (by default) 30,000 simulated chronologies with individual lengths exceeding 18,000. This will require a significant amount of memory. If needed, decrease the number of samples down or free up memory before use.
 
 ## Attribution
 This code is associated and written for the paper *Myrvoll-Nilsen et al. 2022* mentioned above. Feel free to use the code, but please cite the accompanying paper.
